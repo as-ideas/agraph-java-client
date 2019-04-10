@@ -10,6 +10,28 @@ package test;
  * Licensed under the Aduna BSD-style license.
  */
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Reader;
+import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
+import java.sql.Date;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.TimeZone;
+import javax.xml.datatype.DatatypeFactory;
+import javax.xml.datatype.XMLGregorianCalendar;
+
 import org.eclipse.rdf4j.common.iteration.CloseableIteration;
 import org.eclipse.rdf4j.common.iteration.Iterations;
 import org.eclipse.rdf4j.model.BNode;
@@ -47,27 +69,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import javax.xml.datatype.DatatypeFactory;
-import javax.xml.datatype.XMLGregorianCalendar;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Reader;
-import java.io.StringReader;
-import java.sql.Date;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.TimeZone;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -91,6 +92,8 @@ public abstract class RepositoryConnectionTest {
 
     protected BNode alice;
 
+    protected BNode trudy;
+
     protected BNode alexander;
 
     protected IRI name;
@@ -108,6 +111,8 @@ public abstract class RepositoryConnectionTest {
     protected Literal nameAlice;
 
     protected Literal nameBob;
+
+    protected Literal nameTrudy;
 
     protected Literal mboxAlice;
 
@@ -132,6 +137,7 @@ public abstract class RepositoryConnectionTest {
         // Initialize values
         bob = vf.createBNode();
         alice = vf.createBNode();
+        trudy = vf.createBNode();
         alexander = vf.createBNode();
 
         name = vf.createIRI(FOAF_NS + "name");
@@ -141,6 +147,8 @@ public abstract class RepositoryConnectionTest {
 
         nameAlice = vf.createLiteral("Alice");
         nameBob = vf.createLiteral("Bob");
+
+        nameTrudy = vf.createLiteral("Evil \t Trudy");
 
         mboxAlice = vf.createLiteral("alice@example.org");
         mboxBob = vf.createLiteral("bob@example.org");
@@ -228,7 +236,7 @@ public abstract class RepositoryConnectionTest {
                 throws Exception {
             InputStream defaultGraphStream = Util.resourceAsStream(TEST_DIR_PREFIX
                     + "default-graph.ttl");
-            Reader defaultGraph = new InputStreamReader(defaultGraphStream, "UTF-8");
+            Reader defaultGraph = new InputStreamReader(defaultGraphStream, StandardCharsets.UTF_8);
 
             testCon.add(defaultGraph, "", RDFFormat.TURTLE);
 
@@ -242,7 +250,7 @@ public abstract class RepositoryConnectionTest {
             // add file graph1.ttl to context1
             InputStream graph1Stream = Util.resourceAsStream(TEST_DIR_PREFIX
                     + "graph1.ttl");
-            Reader graph1 = new InputStreamReader(graph1Stream, "UTF-8");
+            Reader graph1 = new InputStreamReader(graph1Stream, StandardCharsets.UTF_8);
 
             testCon.add(graph1, "", RDFFormat.TURTLE, context1);
 
@@ -251,7 +259,7 @@ public abstract class RepositoryConnectionTest {
             // add file graph2.ttl to context2
             InputStream graph2Stream = Util.resourceAsStream(TEST_DIR_PREFIX
                     + "graph2.ttl");
-            Reader graph2 = new InputStreamReader(graph2Stream, "UTF-8");
+            Reader graph2 = new InputStreamReader(graph2Stream, StandardCharsets.UTF_8);
 
             testCon.add(graph2, "", RDFFormat.TURTLE, context2);
 
@@ -430,8 +438,7 @@ public abstract class RepositoryConnectionTest {
 
         // Unsupported query language: 'SeRQL'
         @Test(expected = QueryEvaluationException.class)
-        public void testSimpleTupleQueryUnicode()
-                throws Exception {
+        public void testSimpleTupleQueryUnicode() throws Exception {
             testCon.add(alexander, name, Александър);
 
             StringBuilder queryBuilder = new StringBuilder();
@@ -628,6 +635,27 @@ public abstract class RepositoryConnectionTest {
             boolean exists = testCon.prepareBooleanQuery(QueryLanguage.SPARQL, queryBuilder.toString()).evaluate();
 
             assertTrue(exists);
+        }
+
+        @Test
+        public void testSimpleBooleanQuery_FailingDueTo_TabChar()
+                throws Exception {
+
+            testCon.add(alice, name, nameTrudy, context2);
+
+            StringBuilder queryBuilder = new StringBuilder();
+
+            queryBuilder.append("PREFIX foaf: <" + FOAF_NS + "> ");
+            queryBuilder.append("SELECT ?name WHERE ");
+            queryBuilder.append("{ ?p foaf:name ?name }");
+
+            final TupleQueryResult res = testCon.prepareTupleQuery(QueryLanguage.SPARQL, queryBuilder.toString()).evaluate();
+
+
+            while(res.hasNext()){
+                final BindingSet bs = res.next();
+                assertEquals("", nameTrudy, bs.getValue("name").stringValue());
+            }
         }
 
         @Test
