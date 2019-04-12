@@ -654,7 +654,7 @@ public abstract class RepositoryConnectionTest {
 
             while(res.hasNext()){
                 final BindingSet bs = res.next();
-                assertEquals("", nameTrudy, bs.getValue("name").stringValue());
+                assertEquals("", nameTrudy.stringValue(), bs.getValue("name").stringValue());
             }
         }
 
